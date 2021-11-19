@@ -5,10 +5,12 @@
 //     Copyright (c) 2017, Máté Cserép, http://codenet.hu
 //     All rights reserved.
 // </copyright>
-namespace Octree
+
+using UnityEngine;
+
+namespace mcserep.Octree
 {
     using System.Collections.Generic;
-    using NLog;
 
     public partial class BoundsOctree<T>
     {
@@ -18,14 +20,9 @@ namespace Octree
         private class Node
         {
             /// <summary>
-            /// The logger
-            /// </summary>
-            private static readonly Logger Logger = LogManager.GetLogger("octree");
-
-            /// <summary>
             /// Centre of this node
             /// </summary>
-            public Point Center { get; private set; }
+            public Vector3 Center { get; private set; }
 
             /// <summary>
             /// Length of this node if it has a looseness of 1.0
@@ -50,7 +47,7 @@ namespace Octree
             /// <summary>
             /// Bounding box that represents this node
             /// </summary>
-            private BoundingBox _bounds = default(BoundingBox);
+            private Bounds _bounds;
 
             /// <summary>
             /// Objects in this node
@@ -65,7 +62,7 @@ namespace Octree
             /// <summary>
             /// Bounds of potential children to this node. These are actual size (with looseness taken into account), not base size
             /// </summary>
-            private BoundingBox[] _childBounds;
+            private Bounds[] _childBounds;
 
             /// <summary>
             /// If there are already NumObjectsAllowed in a node, we split it into children
@@ -78,10 +75,7 @@ namespace Octree
             /// <summary>
             /// Gets a value indicating whether this node has children
             /// </summary>
-            private bool HasChildren
-            {
-                get { return _children != null; }
-            }
+            private bool HasChildren => _children != null;
 
             /// <summary>
             /// An object in the octree
@@ -96,16 +90,13 @@ namespace Octree
                 /// <summary>
                 /// Object bounds
                 /// </summary>
-                public BoundingBox Bounds;
+                public Bounds Bounds;
             }
 
             /// <summary>
             /// Gets the bounding box that represents this node
             /// </summary>
-            public BoundingBox Bounds
-            {
-                get { return _bounds; }
-            }
+            public Bounds Bounds => _bounds;
 
             /// <summary>
             /// Constructor.
@@ -114,7 +105,7 @@ namespace Octree
             /// <param name="minSizeVal">Minimum size of nodes in this octree.</param>
             /// <param name="loosenessVal">Multiplier for baseLengthVal to get the actual size.</param>
             /// <param name="centerVal">Centre position of this node.</param>
-            public Node(float baseLengthVal, float minSizeVal, float loosenessVal, Point centerVal)
+            public Node(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal)
             {
                 SetValues(baseLengthVal, minSizeVal, loosenessVal, centerVal);
             }
@@ -127,7 +118,7 @@ namespace Octree
             /// <param name="obj">Object to add.</param>
             /// <param name="objBounds">3D bounding box around the object.</param>
             /// <returns>True if the object fits entirely within this node.</returns>
-            public bool Add(T obj, BoundingBox objBounds)
+            public bool Add(T obj, Bounds objBounds)
             {
                 if (!Encapsulates(_bounds, objBounds))
                 {
@@ -182,7 +173,7 @@ namespace Octree
             /// <param name="obj">Object to remove.</param>
             /// <param name="objBounds">3D bounding box around the object.</param>
             /// <returns>True if the object was removed successfully.</returns>
-            public bool Remove(T obj, BoundingBox objBounds)
+            public bool Remove(T obj, Bounds objBounds)
             {
                 if (!Encapsulates(_bounds, objBounds))
                 {
@@ -196,7 +187,7 @@ namespace Octree
             /// </summary>
             /// <param name="checkBounds">Bounds to check.</param>
             /// <returns>True if there was a collision.</returns>
-            public bool IsColliding(ref BoundingBox checkBounds)
+            public bool IsColliding(ref Bounds checkBounds)
             {
                 // Are the input bounds at least partially in this node?
                 if (!_bounds.Intersects(checkBounds))
@@ -273,7 +264,7 @@ namespace Octree
             /// <param name="checkBounds">Bounds to check. Passing by ref as it improves performance with structs.</param>
             /// <param name="result">List result.</param>
             /// <returns>Objects that intersect with the specified bounds.</returns>
-            public void GetColliding(ref BoundingBox checkBounds, List<T> result)
+            public void GetColliding(ref Bounds checkBounds, List<T> result)
             {
                 // Are the input bounds at least partially in this node?
                 if (!_bounds.Intersects(checkBounds))
@@ -343,7 +334,7 @@ namespace Octree
             {
                 if (childOctrees.Length != 8)
                 {
-                    Logger.Error("Child octree array must be length 8. Was length: " + childOctrees.Length);
+                    Debug.LogError("Child octree array must be length 8. Was length: " + childOctrees.Length);
                     return;
                 }
 
@@ -371,11 +362,11 @@ namespace Octree
                 }
 
                 // Check objects in root
-                int bestFit = -1;
+                var bestFit = -1;
                 for (int i = 0; i < _objects.Count; i++)
                 {
-                    OctreeObject curObj = _objects[i];
-                    int newBestFit = BestFitChild(curObj.Bounds.Center);
+                    var curObj = _objects[i];
+                    var newBestFit = BestFitChild(curObj.Bounds.center);
                     if (i == 0 || newBestFit == bestFit)
                     {
                         // In same octant as the other(s). Does it fit completely inside that octant?
@@ -425,7 +416,7 @@ namespace Octree
                 {
                     // We don't have any children, so just shrink this node to the new size
                     // We already know that everything will still fit in it
-                    SetValues(BaseLength / 2, _minSize, _looseness, _childBounds[bestFit].Center);
+                    SetValues(BaseLength / 2, _minSize, _looseness, _childBounds[bestFit].center);
                     return this;
                 }
 
@@ -444,11 +435,11 @@ namespace Octree
             /// </summary>
             /// <param name="objBoundsCenter">The object's bounds center.</param>
             /// <returns>One of the eight child octants.</returns>
-            public int BestFitChild(Point objBoundsCenter)
+            public int BestFitChild(Vector3 objBoundsCenter)
             {
-                return (objBoundsCenter.X <= Center.X ? 0 : 1)
-                       + (objBoundsCenter.Y >= Center.Y ? 0 : 4)
-                       + (objBoundsCenter.Z <= Center.Z ? 0 : 2);
+                return (objBoundsCenter.x <= Center.x ? 0 : 1)
+                       + (objBoundsCenter.y >= Center.y ? 0 : 4)
+                       + (objBoundsCenter.z <= Center.z ? 0 : 2);
             }
 
             /// <summary>
@@ -470,6 +461,18 @@ namespace Octree
                 return false;
             }
 
+            public void DrawGizmos()
+            {
+                Gizmos.DrawWireCube(Center, _bounds.size);
+                if (HasChildren)
+                {
+                    foreach (var child in _children)
+                    {
+                        child.DrawGizmos();
+                    }
+                }
+            }
+            
             // #### PRIVATE METHODS ####
 
             /// <summary>
@@ -479,7 +482,7 @@ namespace Octree
             /// <param name="minSizeVal">Minimum size of nodes in this octree.</param>
             /// <param name="loosenessVal">Multiplier for baseLengthVal to get the actual size.</param>
             /// <param name="centerVal">Center position of this node.</param>
-            private void SetValues(float baseLengthVal, float minSizeVal, float loosenessVal, Point centerVal)
+            private void SetValues(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal)
             {
                 BaseLength = baseLengthVal;
                 _minSize = minSizeVal;
@@ -488,21 +491,21 @@ namespace Octree
                 _adjLength = _looseness * baseLengthVal;
 
                 // Create the bounding box.
-                Point size = new Point(_adjLength, _adjLength, _adjLength);
-                _bounds = new BoundingBox(Center, size);
+                var size = new Vector3(_adjLength, _adjLength, _adjLength);
+                _bounds = new Bounds(Center, size);
 
-                float quarter = BaseLength / 4f;
-                float childActualLength = (BaseLength / 2) * _looseness;
-                Point childActualSize = new Point(childActualLength, childActualLength, childActualLength);
-                _childBounds = new BoundingBox[8];
-                _childBounds[0] = new BoundingBox(Center + new Point(-quarter, quarter, -quarter), childActualSize);
-                _childBounds[1] = new BoundingBox(Center + new Point(quarter, quarter, -quarter), childActualSize);
-                _childBounds[2] = new BoundingBox(Center + new Point(-quarter, quarter, quarter), childActualSize);
-                _childBounds[3] = new BoundingBox(Center + new Point(quarter, quarter, quarter), childActualSize);
-                _childBounds[4] = new BoundingBox(Center + new Point(-quarter, -quarter, -quarter), childActualSize);
-                _childBounds[5] = new BoundingBox(Center + new Point(quarter, -quarter, -quarter), childActualSize);
-                _childBounds[6] = new BoundingBox(Center + new Point(-quarter, -quarter, quarter), childActualSize);
-                _childBounds[7] = new BoundingBox(Center + new Point(quarter, -quarter, quarter), childActualSize);
+                var quarter = BaseLength / 4f;
+                var childActualLength = (BaseLength / 2) * _looseness;
+                var childActualSize = new Vector3(childActualLength, childActualLength, childActualLength);
+                _childBounds = new Bounds[8];
+                _childBounds[0] = new Bounds(Center + new Vector3(-quarter, quarter, -quarter), childActualSize);
+                _childBounds[1] = new Bounds(Center + new Vector3(quarter, quarter, -quarter), childActualSize);
+                _childBounds[2] = new Bounds(Center + new Vector3(-quarter, quarter, quarter), childActualSize);
+                _childBounds[3] = new Bounds(Center + new Vector3(quarter, quarter, quarter), childActualSize);
+                _childBounds[4] = new Bounds(Center + new Vector3(-quarter, -quarter, -quarter), childActualSize);
+                _childBounds[5] = new Bounds(Center + new Vector3(quarter, -quarter, -quarter), childActualSize);
+                _childBounds[6] = new Bounds(Center + new Vector3(-quarter, -quarter, quarter), childActualSize);
+                _childBounds[7] = new Bounds(Center + new Vector3(quarter, -quarter, quarter), childActualSize);
             }
 
             /// <summary>
@@ -510,7 +513,7 @@ namespace Octree
             /// </summary>
             /// <param name="obj">Object to add.</param>
             /// <param name="objBounds">3D bounding box around the object.</param>
-            private void SubAdd(T obj, BoundingBox objBounds)
+            private void SubAdd(T obj, Bounds objBounds)
             {
                 // We know it fits at this level if we've got this far
 
@@ -533,7 +536,7 @@ namespace Octree
                         Split();
                         if (_children == null)
                         {
-                            Logger.Error("Child creation failed for an unknown reason. Early exit.");
+                            Debug.LogError("Child creation failed for an unknown reason. Early exit.");
                             return;
                         }
 
@@ -543,7 +546,7 @@ namespace Octree
                             OctreeObject existingObj = _objects[i];
                             // Find which child the object is closest to based on where the
                             // object's center is located in relation to the octree's center
-                            int bestFitChild = BestFitChild(existingObj.Bounds.Center);
+                            int bestFitChild = BestFitChild(existingObj.Bounds.center);
                             // Does it fit?
                             if (Encapsulates(_children[bestFitChild]._bounds, existingObj.Bounds))
                             {
@@ -555,7 +558,7 @@ namespace Octree
                 }
 
                 // Handle the new object we're adding now
-                int bestFit = BestFitChild(objBounds.Center);
+                int bestFit = BestFitChild(objBounds.center);
                 if (Encapsulates(_children[bestFit]._bounds, objBounds))
                 {
                     _children[bestFit].SubAdd(obj, objBounds);
@@ -574,7 +577,7 @@ namespace Octree
             /// <param name="obj">Object to remove.</param>
             /// <param name="objBounds">3D bounding box around the object.</param>
             /// <returns>True if the object was removed successfully.</returns>
-            private bool SubRemove(T obj, BoundingBox objBounds)
+            private bool SubRemove(T obj, Bounds objBounds)
             {
                 bool removed = false;
 
@@ -589,7 +592,7 @@ namespace Octree
 
                 if (!removed && _children != null)
                 {
-                    int bestFitChild = BestFitChild(objBounds.Center);
+                    int bestFitChild = BestFitChild(objBounds.center);
                     removed = _children[bestFitChild].SubRemove(obj, objBounds);
                 }
 
@@ -617,42 +620,42 @@ namespace Octree
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(-quarter, quarter, -quarter));
+                    Center + new Vector3(-quarter, quarter, -quarter));
                 _children[1] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(quarter, quarter, -quarter));
+                    Center + new Vector3(quarter, quarter, -quarter));
                 _children[2] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(-quarter, quarter, quarter));
+                    Center + new Vector3(-quarter, quarter, quarter));
                 _children[3] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(quarter, quarter, quarter));
+                    Center + new Vector3(quarter, quarter, quarter));
                 _children[4] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(-quarter, -quarter, -quarter));
+                    Center + new Vector3(-quarter, -quarter, -quarter));
                 _children[5] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(quarter, -quarter, -quarter));
+                    Center + new Vector3(quarter, -quarter, -quarter));
                 _children[6] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(-quarter, -quarter, quarter));
+                    Center + new Vector3(-quarter, -quarter, quarter));
                 _children[7] = new Node(
                     newLength,
                     _minSize,
                     _looseness,
-                    Center + new Point(quarter, -quarter, quarter));
+                    Center + new Vector3(quarter, -quarter, quarter));
             }
 
             /// <summary>
@@ -683,9 +686,9 @@ namespace Octree
             /// <param name="outerBounds">Outer bounds.</param>
             /// <param name="innerBounds">Inner bounds.</param>
             /// <returns>True if innerBounds is fully encapsulated by outerBounds.</returns>
-            private static bool Encapsulates(BoundingBox outerBounds, BoundingBox innerBounds)
+            private static bool Encapsulates(Bounds outerBounds, Bounds innerBounds)
             {
-                return outerBounds.Contains(innerBounds.Min) && outerBounds.Contains(innerBounds.Max);
+                return outerBounds.Contains(innerBounds.min) && outerBounds.Contains(innerBounds.max);
             }
 
             /// <summary>
